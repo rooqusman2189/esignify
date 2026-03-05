@@ -37,6 +37,9 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class BootstrapAdminRequest(BaseModel):
+    bootstrap_token: str
+
 class TenantCreate(BaseModel):
     name: str
     tenant_id: str
@@ -201,6 +204,73 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
         await db.commit()
     response.delete_cookie("session_token", path="/")
     return {"success": True, "message": "Logged out"}
+
+@api_router.post("/auth/bootstrap-admin")
+async def bootstrap_admin(payload: BootstrapAdminRequest, db: AsyncSession = Depends(get_db)):
+    expected_token = os.environ.get("BOOTSTRAP_TOKEN")
+    if not expected_token:
+        raise HTTPException(status_code=403, detail="Bootstrap is disabled")
+
+    if payload.bootstrap_token != expected_token:
+        raise HTTPException(status_code=403, detail="Invalid bootstrap token")
+
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    admin_name = os.environ.get("ADMIN_NAME", "Super Admin")
+    admin_tenant_id = os.environ.get("ADMIN_TENANT_ID", "default")
+
+    if not admin_email or not admin_password:
+        raise HTTPException(status_code=400, detail="ADMIN_EMAIL and ADMIN_PASSWORD are required")
+
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == admin_tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        tenant = Tenant(
+            id=admin_tenant_id,
+            name=f"{admin_name}'s Organization",
+            created_by="system"
+        )
+        db.add(tenant)
+
+    user_result = await db.execute(select(User).where(User.email == admin_email))
+    user = user_result.scalar_one_or_none()
+
+    if user:
+        await db.execute(
+            update(User)
+            .where(User.id == user.id)
+            .values(
+                password_hash=pwd_context.hash(admin_password),
+                name=admin_name,
+                role="super_admin",
+                tenant_id=admin_tenant_id
+            )
+        )
+        action = "updated"
+    else:
+        user = User(
+            id=generate_id("user"),
+            email=admin_email,
+            password_hash=pwd_context.hash(admin_password),
+            name=admin_name,
+            role="super_admin",
+            tenant_id=admin_tenant_id
+        )
+        db.add(user)
+        action = "created"
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"Super admin {action} successfully",
+        "data": {
+            "email": admin_email,
+            "tenant_id": admin_tenant_id,
+            "action": action
+        }
+    }
 
 # Tenant Routes
 @api_router.get("/tenants/me")
