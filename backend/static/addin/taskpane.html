@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ESignify Signatures</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            padding: 16px; 
+            background: #ffffff;
+            min-height: 100vh;
+        }
+        .header { 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            margin-bottom: 16px; 
+            padding-bottom: 12px; 
+            border-bottom: 1px solid #e5e7eb; 
+        }
+        .logo { 
+            width: 32px; 
+            height: 32px; 
+            background: linear-gradient(135deg, #2563EB, #1d4ed8); 
+            border-radius: 6px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+            font-weight: 700;
+            font-size: 16px;
+        }
+        .title { 
+            font-size: 18px; 
+            font-weight: 600; 
+            color: #111827;
+        }
+        .status { 
+            padding: 12px 14px; 
+            border-radius: 8px; 
+            margin-bottom: 16px; 
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status.loading { 
+            background: #eff6ff; 
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+        .status.success { 
+            background: #f0fdf4; 
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error { 
+            background: #fef2f2; 
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+        .status-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #bfdbfe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn { 
+            width: 100%; 
+            padding: 12px 16px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            font-weight: 500;
+            cursor: pointer; 
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary { 
+            background: #2563EB; 
+            color: white; 
+        }
+        .btn-primary:hover:not(:disabled) { 
+            background: #1d4ed8; 
+            transform: translateY(-1px);
+        }
+        .btn-primary:disabled { 
+            background: #93c5fd; 
+            cursor: not-allowed; 
+        }
+        .btn-secondary { 
+            background: #f3f4f6; 
+            color: #374151; 
+            border: 1px solid #d1d5db; 
+        }
+        .btn-secondary:hover { 
+            background: #e5e7eb; 
+        }
+        .preview-section { 
+            margin-top: 20px; 
+            background: #f9fafb; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .preview-title { 
+            font-size: 12px; 
+            color: #6b7280; 
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 10px 12px;
+            background: #f3f4f6;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 600;
+        }
+        .preview-content { 
+            padding: 12px;
+            max-height: 180px; 
+            overflow: auto; 
+            font-size: 13px;
+        }
+        .user-info {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 12px;
+            padding: 8px 10px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .debug-info {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">E</div>
+        <span class="title">ESignify</span>
+    </div>
+    
+    <div id="userInfo" class="user-info" style="display:none;"></div>
+    
+    <div id="status" class="status loading">
+        <div class="status-icon"><div class="spinner"></div></div>
+        <span>Initializing...</span>
+    </div>
+    
+    <button id="insertBtn" class="btn btn-primary" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+        </svg>
+        Insert Signature
+    </button>
+    <button id="refreshBtn" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        Refresh
+    </button>
+    
+    <div id="previewSection" class="preview-section" style="display:none;">
+        <div class="preview-title">Signature Preview</div>
+        <div id="preview" class="preview-content"></div>
+    </div>
+
+    <div id="debugInfo" class="debug-info"></div>
+
+    <script>
+        let signatureHtml = '';
+        let userEmail = '';
+        const API_BASE = 'https://esignify-preview-1.preview.emergentagent.com';
+        
+        // Initialize Office.js
+        Office.onReady(function(info) {
+            console.log('Office.onReady called', info);
+            updateDebug('Office ready: ' + info.host);
+            
+            if (info.host === Office.HostType.Outlook) {
+                // Get user email from mailbox
+                try {
+                    userEmail = Office.context.mailbox.userProfile.emailAddress;
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('userInfo').textContent = 'User: ' + userEmail;
+                    updateDebug('User email: ' + userEmail);
+                    loadSignature();
+                } catch (e) {
+                    updateStatus('error', 'Could not get user email: ' + e.message);
+                    updateDebug('Error getting email: ' + e.message);
+                }
+            } else {
+                updateStatus('error', 'Please open this from Outlook');
+                updateDebug('Not in Outlook host: ' + info.host);
+            }
+            
+            document.getElementById('insertBtn').onclick = insertSignature;
+            document.getElementById('refreshBtn').onclick = loadSignature;
+        });
+        
+        function updateStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + type;
+            
+            let icon = '';
+            if (type === 'loading') {
+                icon = '<div class="spinner"></div>';
+            } else if (type === 'success') {
+                icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
+            } else {
+                icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+            }
+            
+            status.innerHTML = '<div class="status-icon">' + icon + '</div><span>' + message + '</span>';
+        }
+        
+        function updateDebug(msg) {
+            const debug = document.getElementById('debugInfo');
+            debug.textContent = msg;
+        }
+        
+        async function loadSignature() {
+            const insertBtn = document.getElementById('insertBtn');
+            const previewSection = document.getElementById('previewSection');
+            const preview = document.getElementById('preview');
+            
+            updateStatus('loading', 'Loading signature...');
+            insertBtn.disabled = true;
+            
+            if (!userEmail) {
+                updateStatus('error', 'No user email available');
+                return;
+            }
+            
+            try {
+                const url = API_BASE + '/api/addin/signature?email=' + encodeURIComponent(userEmail);
+                updateDebug('Fetching: ' + url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log('API response:', data);
+                updateDebug('Response: ' + (data.success ? 'success' : data.message));
+                
+                if (data.success && data.data && data.data.html) {
+                    signatureHtml = data.data.html;
+                    updateStatus('success', 'Ready: ' + data.data.employee_name);
+                    insertBtn.disabled = false;
+                    previewSection.style.display = 'block';
+                    preview.innerHTML = signatureHtml;
+                } else {
+                    throw new Error(data.message || 'No signature found');
+                }
+            } catch (err) {
+                console.error('Load error:', err);
+                updateStatus('error', err.message || 'Failed to load signature');
+                previewSection.style.display = 'none';
+                updateDebug('Error: ' + err.message);
+            }
+        }
+        
+        function insertSignature() {
+            if (!signatureHtml) {
+                updateStatus('error', 'No signature loaded');
+                return;
+            }
+            
+            updateStatus('loading', 'Inserting signature...');
+            
+            Office.context.mailbox.item.body.getAsync(
+                Office.CoercionType.Html, 
+                function(result) {
+                    if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        let body = result.value;
+                        
+                        // Signature wrapper with clear identification
+                        const sigDiv = '<div class="esignify-signature" style="margin-top:20px;padding-top:15px;border-top:1px solid #e5e7eb;">' + signatureHtml + '</div>';
+                        
+                        // Remove existing signature if present
+                        if (body.includes('esignify-signature')) {
+                            body = body.replace(/<div class="esignify-signature"[^>]*>[\s\S]*?<\/div>/gi, sigDiv);
+                        } else {
+                            // Find the end of body content (before closing tags)
+                            const closingTags = '</body>';
+                            const insertPos = body.toLowerCase().indexOf(closingTags);
+                            if (insertPos > -1) {
+                                body = body.slice(0, insertPos) + sigDiv + body.slice(insertPos);
+                            } else {
+                                body = body + sigDiv;
+                            }
+                        }
+                        
+                        Office.context.mailbox.item.body.setAsync(
+                            body, 
+                            {coercionType: Office.CoercionType.Html}, 
+                            function(setResult) {
+                                if (setResult.status === Office.AsyncResultStatus.Succeeded) {
+                                    updateStatus('success', 'Signature inserted successfully!');
+                                } else {
+                                    updateStatus('error', 'Failed to insert: ' + (setResult.error ? setResult.error.message : 'Unknown error'));
+                                }
+                            }
+                        );
+                    } else {
+                        updateStatus('error', 'Could not read email body');
+                    }
+                }
+            );
+        }
+    </script>
+</body>
+</html>

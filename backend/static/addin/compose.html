@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESignify - Email Signature</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 16px;
+            background: #f8f9fa;
+        }
+        .container {
+            max-width: 100%;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .logo {
+            width: 24px;
+            height: 24px;
+            background: #2563EB;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status.loading {
+            background: #e0f2fe;
+            color: #075985;
+        }
+        .btn {
+            width: 100%;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #2563EB;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-primary:disabled {
+            background: #93c5fd;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            margin-top: 8px;
+        }
+        .btn-secondary:hover {
+            background: #f3f4f6;
+        }
+        .preview {
+            margin-top: 16px;
+            padding: 12px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .preview-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">E</div>
+            <span class="title">ESignify</span>
+        </div>
+        
+        <div id="status" class="status loading">Loading your signature...</div>
+        
+        <button id="insertBtn" class="btn btn-primary" onclick="insertSignature()" disabled>
+            Insert Signature
+        </button>
+        
+        <button id="refreshBtn" class="btn btn-secondary" onclick="loadSignature()">
+            Refresh Signature
+        </button>
+        
+        <div id="previewContainer" style="display: none;">
+            <div class="preview-label">Preview</div>
+            <div id="preview" class="preview"></div>
+        </div>
+    </div>
+
+    <script>
+        let signatureHtml = '';
+        let userEmail = '';
+        
+        // Initialize Office
+        Office.onReady(function(info) {
+            if (info.host === Office.HostType.Outlook) {
+                // Get user email from mailbox
+                userEmail = Office.context.mailbox.userProfile.emailAddress;
+                loadSignature();
+            }
+        });
+        
+        async function loadSignature() {
+            const statusEl = document.getElementById('status');
+            const insertBtn = document.getElementById('insertBtn');
+            const previewContainer = document.getElementById('previewContainer');
+            const previewEl = document.getElementById('preview');
+            
+            statusEl.className = 'status loading';
+            statusEl.textContent = 'Loading signature...';
+            insertBtn.disabled = true;
+            
+            try {
+                // Get API URL from the manifest or use default
+                const apiUrl = getApiUrl();
+                
+                // Fetch signature for the current user
+                const response = await fetch(`${apiUrl}/api/addin/signature?email=${encodeURIComponent(userEmail)}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data.html) {
+                    signatureHtml = data.data.html;
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✓ Signature ready';
+                    insertBtn.disabled = false;
+                    previewContainer.style.display = 'block';
+                    previewEl.innerHTML = signatureHtml;
+                } else {
+                    throw new Error(data.message || 'No signature found');
+                }
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = 'No signature assigned. Contact your admin.';
+                previewContainer.style.display = 'none';
+                console.error('Error loading signature:', error);
+            }
+        }
+        
+        function insertSignature() {
+            if (!signatureHtml) return;
+            
+            Office.context.mailbox.item.body.getAsync(
+                Office.CoercionType.Html,
+                function(result) {
+                    if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        let body = result.value;
+                        
+                        // Check if signature already exists
+                        if (body.includes('esignify-signature')) {
+                            // Update existing signature
+                            body = body.replace(
+                                /<div[^>]*class="esignify-signature"[^>]*>[\s\S]*?<\/div>/gi,
+                                `<div class="esignify-signature">${signatureHtml}</div>`
+                            );
+                        } else {
+                            // Append new signature
+                            body = body + `<br><div class="esignify-signature">${signatureHtml}</div>`;
+                        }
+                        
+                        Office.context.mailbox.item.body.setAsync(
+                            body,
+                            { coercionType: Office.CoercionType.Html },
+                            function(setResult) {
+                                if (setResult.status === Office.AsyncResultStatus.Succeeded) {
+                                    const statusEl = document.getElementById('status');
+                                    statusEl.className = 'status success';
+                                    statusEl.textContent = '✓ Signature inserted!';
+                                }
+                            }
+                        );
+                    }
+                }
+            );
+        }
+        
+        function getApiUrl() {
+            // The API is at the same origin but under /api path
+            return window.location.origin;
+        }
+    </script>
+</body>
+</html>
