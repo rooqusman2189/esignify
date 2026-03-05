@@ -24,9 +24,14 @@ def _build_url_from_parts() -> str | None:
 def _resolve_database_url() -> str:
     candidates = [
         os.environ.get("DATABASE_URL"),
+        os.environ.get("DATABASE_PRIVATE_URL"),
+        os.environ.get("DATABASE_PUBLIC_URL"),
         os.environ.get("POSTGRES_URL"),
+        os.environ.get("POSTGRES_PRIVATE_URL"),
+        os.environ.get("POSTGRES_PUBLIC_URL"),
         os.environ.get("POSTGRESQL_URL"),
         os.environ.get("PG_URL"),
+        os.environ.get("RAILWAY_DATABASE_URL"),
     ]
 
     for candidate in candidates:
