@@ -36,7 +36,7 @@ export const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.post('/api/auth/login', { email, password });
+      const response = await api.post('/api/auth/login', { email, password }, { withCredentials: true });
       if (response.data.success) {
         setUser(response.data.data.user);
         toast.success('Logged in successfully!');
