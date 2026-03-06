@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 import os
 import logging
@@ -12,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from passlib.context import CryptContext
 import csv
@@ -296,18 +298,42 @@ async def get_my_tenant(user: User = Depends(get_current_user), db: AsyncSession
 
 @api_router.post("/tenants")
 async def create_tenant(data: TenantCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant_name = data.name.strip()
+    tenant_id = data.tenant_id.strip().lower()
+
+    if not tenant_name or not tenant_id:
+        raise HTTPException(status_code=400, detail="Organization name and ID are required")
+
+    if len(tenant_id) > 50:
+        raise HTTPException(status_code=400, detail="Organization ID must be 50 characters or fewer")
+
+    if not re.fullmatch(r"[a-z0-9-]+", tenant_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Organization ID can only contain lowercase letters, numbers, and hyphens",
+        )
+
+    existing_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    existing_tenant = existing_result.scalar_one_or_none()
+    if existing_tenant:
+        raise HTTPException(status_code=409, detail="Organization ID already exists")
+
     tenant = Tenant(
-        id=data.tenant_id,
-        name=data.name,
+        id=tenant_id,
+        name=tenant_name,
         created_by=user.id
     )
     db.add(tenant)
     
     # Only set tenant_id if user doesn't have one yet (first organization)
     if not user.tenant_id:
-        await db.execute(update(User).where(User.id == user.id).values(tenant_id=data.tenant_id))
-    
-    await db.commit()
+        await db.execute(update(User).where(User.id == user.id).values(tenant_id=tenant_id))
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Organization ID already exists")
     
     return {"success": True, "data": {"tenant_id": tenant.id, "name": tenant.name}}
 

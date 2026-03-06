@@ -104,8 +104,15 @@ export default function Organizations() {
                 <Input
                   placeholder="e.g., acme-corp"
                   value={newOrgId}
-                  onChange={(e) => setNewOrgId(e.target.value)}
+                  onChange={(e) => {
+                    const normalized = e.target.value
+                      .toLowerCase()
+                      .replace(/\s+/g, '-')
+                      .replace(/[^a-z0-9-]/g, '');
+                    setNewOrgId(normalized);
+                  }}
                 />
+                <p className="text-xs text-gray-500 mt-1">Use lowercase letters, numbers, and hyphens only.</p>
               </div>
               <Button onClick={handleCreateOrganization} className="w-full">
                 Create Organization
